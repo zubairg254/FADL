@@ -144,44 +144,34 @@ class FADLToExcelApp:
             self.update_status(f"Loading UCH Excel data from: {excel_path}")
             # Load the FADL_Calculation worksheet
             df = pd.read_excel(excel_path, sheet_name='FADL_Calculation')
-            
-            # Check if required columns exist
-            if 'Date' not in df.columns or 'Time to' not in df.columns:
-                self.update_status("Error: Required columns 'Date' and 'Time to' not found in FADL_Calculation worksheet")
+
+            # Column containing timestamp values
+            timestamp_col = 'Date Time Stamp'
+            if timestamp_col not in df.columns:
+                self.update_status(f"Error: '{timestamp_col}' column not found in FADL_Calculation worksheet")
                 return None
-            
-            # Get column E (index 4) - assuming it contains the UCH demand values
+
+            # Column E (index 4) contains the required demand values
             if len(df.columns) < 5:
                 self.update_status("Error: Column E not found in FADL_Calculation worksheet")
                 return None
-            
-            # Create a lookup dictionary based on Date and Time to
+            demand_col = df.columns[4]
+
+            # Build lookup dictionary keyed by formatted timestamp
             uch_lookup = {}
-            for index, row in df.iterrows():
-                date_val = row['Date']
-                time_to_val = row['Time to']
-                column_e_val = row.iloc[4]  # Column E (0-indexed, so index 4)
-                
-                # Handle different date formats
-                if pd.isna(date_val) or pd.isna(time_to_val):
+            for _, row in df.iterrows():
+                ts_val = row[timestamp_col]
+                demand_val = row[demand_col]
+                if pd.isna(ts_val):
                     continue
-                
-                # Convert date to string format if it's a datetime object
-                if isinstance(date_val, pd.Timestamp):
-                    date_str = date_val.strftime('%d-%m-%Y')
-                else:
-                    date_str = str(date_val)
-                
-                # Convert time to string format if it's a time object
-                if isinstance(time_to_val, pd.Timestamp):
-                    time_str = time_to_val.strftime('%H:%M')
-                else:
-                    time_str = str(time_to_val)
-                
-                # Create lookup key
-                lookup_key = f"{date_str}_{time_str}"
-                uch_lookup[lookup_key] = column_e_val
-            
+
+                ts = pd.to_datetime(ts_val, errors='coerce')
+                if pd.isna(ts):
+                    continue
+
+                lookup_key = ts.strftime('%d-%m-%Y_%H:%M')
+                uch_lookup[lookup_key] = demand_val
+
             self.update_status(f"Successfully loaded {len(uch_lookup)} UCH demand records")
             return uch_lookup
             
